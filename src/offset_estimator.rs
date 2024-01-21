@@ -137,7 +137,7 @@ fn generate_random_gamma_values(alpha: f64, beta: f64, num_samples: usize, seed:
 ///
 /// Edmar Mota-Garcia and Rogelio Hasimoto-Beltran: "A new model-based clock-offset approximation over IP networks"
 /// Computer Communications, Volume 53, 2014, Pages 26-36, ISSN 0140-3664, https://doi.org/10.1016/j.comcom.2014.07.006.
-pub fn estimate<I>(time_values: I) -> f64
+pub fn estimate<I>(time_values: I, seed: Option<u64>) -> f64
 where
     I: IntoIterator<Item = f64>,
 {
@@ -149,7 +149,8 @@ where
     } else if alpha < 1.0 {
         alpha = 1.0;
     }
-    let random_values = generate_random_gamma_values(alpha, beta, n, get_time_based_seed());
+    let random_values =
+        generate_random_gamma_values(alpha, beta, n, seed.unwrap_or(get_time_based_seed()));
     // sort random values
     let sorted = sort_values(&time_values_vec);
     let mut random_sorted = random_values;
@@ -206,4 +207,55 @@ fn get_time_based_seed() -> u64 {
     let now = SystemTime::now();
     let duration = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
     duration.as_secs() ^ duration.subsec_nanos() as u64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lcg_rng_output_range() {
+        let mut rng = LcgRng::new(12345);
+        for _ in 0..100 {
+            let num = rng.gen_range(0.0..1.0);
+            assert!(num >= 0.0 && num < 1.0);
+        }
+    }
+
+    #[test]
+    fn test_lcg_rng_consistency() {
+        let mut rng1 = LcgRng::new(12345);
+        let mut rng2 = LcgRng::new(12345);
+        for _ in 0..100 {
+            assert_eq!(rng1.gen_range(0.0..1.0), rng2.gen_range(0.0..1.0));
+        }
+    }
+
+    #[test]
+    fn test_generate_random_gamma_values() {
+        let alpha = 2.0;
+        let beta = 1.5;
+        let num_samples = 100;
+        let seed = 12345;
+        let gamma_values = generate_random_gamma_values(alpha, beta, num_samples, seed);
+        assert_eq!(gamma_values.len(), num_samples);
+        for &value in gamma_values.iter() {
+            assert!(value >= 0.0);
+        }
+    }
+
+    #[test]
+    fn test_estimate_alpha_beta_from_owd() {
+        let sample_data = vec![0.1, 0.2, 0.3, 0.4, 0.5];
+        let (alpha, beta) = estimate_alpha_beta_from_owd(&sample_data);
+        assert_eq!(alpha, 3.5999999999999996);
+        assert_eq!(beta, 0.08333333333333334);
+    }
+
+    #[test]
+    fn test_estimate() {
+        let time_values = vec![0.1, 0.2, 0.3, 0.4, 0.5];
+        let estimated_offset = estimate(time_values, Some(43));
+        assert_eq!(estimated_offset, 0.19495758127356233);
+    }
 }
