@@ -5,5 +5,17 @@ edition = "2021"
 description = "A Rust library for estimating clock offset in networked systems based on the Gamma distribution."
 authors = ["Fabricio Bracht <gamlr@fabrex.mozmail.com>"]
 license = "MIT"
+repository = "https://github.com/fabracht/gamlr.git"
+readme = "README.md"
+keywords = [
+    "clock",
+    "offset",
+    "gamma",
+    "distribution",
+    "network",
+    "synchronization",
+    "estimation",
+    "statistics",
+]
 
 [dependencies]
