@@ -1,6 +1,6 @@
 [package]
 name = "gamlr"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "A Rust library for estimating clock offset in networked systems based on the Gamma distribution."
 authors = ["Fabricio Bracht <gamlr@fabrex.mozmail.com>"]
