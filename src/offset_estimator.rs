@@ -164,7 +164,7 @@ where
 ///
 /// Edmar Mota-Garcia and Rogelio Hasimoto-Beltran: "A new model-based clock-offset approximation over IP networks"
 /// Computer Communications, Volume 53, 2014, Pages 26-36, ISSN 0140-3664, https://doi.org/10.1016/j.comcom.2014.07.006.
-fn estimate_offset(x_sort: &[f64], y: &[f64]) -> f64 {
+pub fn estimate_offset(x_sort: &[f64], y: &[f64]) -> f64 {
     let n = x_sort.len();
     let mut y_regression = Vec::new();
     let mut x_regression = Vec::new();
