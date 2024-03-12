@@ -26,7 +26,7 @@ To use this estimator, you need to provide a series of OWD measurements between 
 Example usage:
 
 ```rust
-let owd_measurements = vec![0.340, 0.360, 0.350, ...]; // Replace with actual measurements
+let owd_measurements = vec![0.340, 0.360, 0.350, ...];
 let offset = estimate(owd_measurements);
 println!("Estimated clock offset: {}", offset);
 ```

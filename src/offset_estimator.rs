@@ -65,27 +65,15 @@ impl LcgRng {
 
 /// Estimates the alpha and beta parameters for the Gamma distribution based on the sample data provided,
 /// using the median instead of the mean.
-fn estimate_alpha_beta_from_owd<'a, I>(x: I) -> (f64, f64)
-where
-    I: IntoIterator<Item = &'a f64>,
-    I::IntoIter: ExactSizeIterator + Clone,
-{
-    let mut x_vec: Vec<_> = x.into_iter().cloned().collect();
-    let n = x_vec.len() as f64;
-    // Sort the sample data to find the median
-    x_vec.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let median_x = if x_vec.len() % 2 == 0 {
-        let mid = x_vec.len() / 2;
-        (x_vec[mid - 1] + x_vec[mid]) / 2.0
-    } else {
-        x_vec[x_vec.len() / 2]
-    };
-
-    // Use the median in place of the mean to estimate alpha and beta
-    let sum_sq_diff = x_vec.iter().map(|&xi| (xi - median_x).powi(2)).sum::<f64>();
+fn estimate_gamma_parameters(x: &[f64]) -> (f64, f64) {
+    let n = x.len() as f64;
+    let mean_x = x.iter().sum::<f64>() / n;
+    let sum_sq_diff = x.iter().map(|&xi| (xi - mean_x).powi(2)).sum::<f64>();
     let var_x = sum_sq_diff / (n - 1.0);
-    let alpha = median_x.powi(2) / var_x;
-    let beta = var_x / median_x;
+
+    let alpha = mean_x.powi(2) / var_x;
+    let beta = var_x / mean_x;
+
     (alpha, beta)
 }
 
@@ -143,7 +131,7 @@ where
 {
     let time_values_vec: Vec<f64> = time_values.into_iter().collect();
     let n = time_values_vec.len();
-    let (mut alpha, beta) = estimate_alpha_beta_from_owd(&time_values_vec);
+    let (mut alpha, beta) = estimate_gamma_parameters(&time_values_vec);
     if alpha > 4.0 {
         alpha = 4.0;
     } else if alpha < 1.0 {
@@ -177,10 +165,10 @@ pub fn estimate_offset(x_sort: &[f64], y: &[f64]) -> f64 {
         x_regression.push(x_sort[i] - p_value);
     }
 
+    let x_mean = x_regression.iter().sum::<f64>() / x_regression.len() as f64;
+    let y_mean = y_regression.iter().sum::<f64>() / y_regression.len() as f64;
     // Perform linear regression to estimate the slope (beta) and intercept (gamma)
     let beta = {
-        let x_mean = x_regression.iter().sum::<f64>() / x_regression.len() as f64;
-        let y_mean = y_regression.iter().sum::<f64>() / y_regression.len() as f64;
         let numerator = x_regression
             .iter()
             .zip(y_regression.iter())
@@ -192,11 +180,7 @@ pub fn estimate_offset(x_sort: &[f64], y: &[f64]) -> f64 {
             .sum::<f64>();
         numerator / denominator
     };
-    let gamma = {
-        let y_mean = y_regression.iter().sum::<f64>() / y_regression.len() as f64;
-        let x_mean = x_regression.iter().sum::<f64>() / x_regression.len() as f64;
-        y_mean - beta * x_mean
-    };
+    let gamma = { y_mean - beta * x_mean };
 
     // Find the point where the regression line crosses the x-axis (y = 0)
     // Return the estimated offset (x_cross).
@@ -247,7 +231,7 @@ mod tests {
     #[test]
     fn test_estimate_alpha_beta_from_owd() {
         let sample_data = vec![0.1, 0.2, 0.3, 0.4, 0.5];
-        let (alpha, beta) = estimate_alpha_beta_from_owd(&sample_data);
+        let (alpha, beta) = estimate_gamma_parameters(&sample_data);
         assert_eq!(alpha, 3.5999999999999996);
         assert_eq!(beta, 0.08333333333333334);
     }
