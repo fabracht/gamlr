@@ -2,7 +2,9 @@ use alloc::vec::Vec;
 
 const MAX_ALPHA: f64 = 4.0;
 const MIN_ALPHA: f64 = 1.0;
-
+/// Predefined constants from "The Art of Computer Programming, Volume 2, Section 3.2.1" by Donald E. Knuth.
+const A: u64 = 6364136223846793005;
+const C: u64 = 1442695040888963407;
 /// A simple Linear Congruential Generator (LCG) for generating pseudorandom numbers.
 ///
 /// # Parameters
@@ -28,8 +30,8 @@ impl LcgRng {
     pub fn new(seed: u64) -> Self {
         LcgRng {
             state: seed,
-            a: 6364136223846793005,
-            c: 1442695040888963407,
+            a: A,
+            c: C,
             m: u64::MAX,
         }
     }
