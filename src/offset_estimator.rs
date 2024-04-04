@@ -1,5 +1,10 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use alloc::vec::Vec;
 
+const MAX_ALPHA: f64 = 4.0;
+const MIN_ALPHA: f64 = 1.0;
+/// Predefined constants from "The Art of Computer Programming, Volume 2, Section 3.2.1" by Donald E. Knuth.
+const A: u64 = 6364136223846793005;
+const C: u64 = 1442695040888963407;
 /// A simple Linear Congruential Generator (LCG) for generating pseudorandom numbers.
 ///
 /// # Parameters
@@ -25,14 +30,14 @@ impl LcgRng {
     pub fn new(seed: u64) -> Self {
         LcgRng {
             state: seed,
-            a: 6364136223846793005,
-            c: 1442695040888963407,
+            a: A,
+            c: C,
             m: u64::MAX,
         }
     }
 
     /// Generates a random value drawn from a uniform distribution over the provided range.
-    pub fn gen_range(&mut self, range: std::ops::Range<f64>) -> f64 {
+    pub fn gen_range(&mut self, range: core::ops::Range<f64>) -> f64 {
         let random_u64 = self.next_u64();
         let random_f64 = random_u64 as f64 / u64::MAX as f64;
         range.start + random_f64 * (range.end - range.start)
@@ -51,7 +56,7 @@ impl LcgRng {
             let v: f64 = self.gen_range(-1.0..1.0);
             let s = u * u + v * v;
             if s < 1.0 && s != 0.0 {
-                let z0 = u * (-2.0 * s.ln() / s).sqrt();
+                let z0 = u * libm::sqrt(-2.0 * libm::log(s) / s);
                 return z0;
             }
         }
@@ -68,10 +73,10 @@ impl LcgRng {
 fn estimate_gamma_parameters(x: &[f64]) -> (f64, f64) {
     let n = x.len() as f64;
     let mean_x = x.iter().sum::<f64>() / n;
-    let sum_sq_diff = x.iter().map(|&xi| (xi - mean_x).powi(2)).sum::<f64>();
+    let sum_sq_diff = x.iter().map(|&xi| libm::pow(xi - mean_x, 2.0)).sum::<f64>();
     let var_x = sum_sq_diff / (n - 1.0);
 
-    let alpha = mean_x.powi(2) / var_x;
+    let alpha = libm::pow(mean_x, 2.0) / var_x;
     let beta = var_x / mean_x;
 
     (alpha, beta)
@@ -97,7 +102,7 @@ fn generate_random_gamma_values(alpha: f64, beta: f64, num_samples: usize, seed:
     (0..num_samples)
         .map(|_| {
             let d = alpha - 1.0 / 3.0;
-            let c = (1.0 / 3.0) / d.sqrt();
+            let c = (1.0 / 3.0) / libm::sqrt(d);
 
             loop {
                 let x = rng.marsaglia_polar_sample();
@@ -112,7 +117,7 @@ fn generate_random_gamma_values(alpha: f64, beta: f64, num_samples: usize, seed:
                 let x_squared = x * x;
 
                 if u < 1.0 - 0.0331 * x_squared * x_squared
-                    || u.ln() < 0.5 * x_squared + d * (1.0 - v + v.ln())
+                    || libm::log(u) < 0.5 * x_squared + d * (1.0 - v + libm::log(v))
                 {
                     break d * v * beta;
                 }
@@ -120,6 +125,7 @@ fn generate_random_gamma_values(alpha: f64, beta: f64, num_samples: usize, seed:
         })
         .collect()
 }
+
 /// Estimates the offset between two networked devices based on one-way delay time (OWD) measurements
 /// using the method described in:
 ///
@@ -132,18 +138,11 @@ where
     let time_values_vec: Vec<f64> = time_values.into_iter().collect();
     let n = time_values_vec.len();
     let (mut alpha, beta) = estimate_gamma_parameters(&time_values_vec);
-    if alpha > 4.0 {
-        alpha = 4.0;
-    } else if alpha < 1.0 {
-        alpha = 1.0;
-    }
-    let random_values =
-        generate_random_gamma_values(alpha, beta, n, seed.unwrap_or(get_time_based_seed()));
-    // sort random values
+    alpha = alpha.max(MIN_ALPHA).min(MAX_ALPHA);
+    let lcg_seed = LcgRng::new(0).next_u64();
+    let random_values = generate_random_gamma_values(alpha, beta, n, seed.unwrap_or(lcg_seed));
     let sorted = sort_values(&time_values_vec);
-    let mut random_sorted = random_values;
-    // sort in increasing order
-    random_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let random_sorted = sort_values(&random_values);
 
     estimate_offset(&sorted, &random_sorted)
 }
@@ -157,7 +156,6 @@ pub fn estimate_offset(x_sort: &[f64], y: &[f64]) -> f64 {
     let mut y_regression = Vec::new();
     let mut x_regression = Vec::new();
 
-    // Create vectors for y and x_sort for use in linear regression (QQ-plot)
     for i in 0..n {
         let rank = (i + 1) as f64;
         let p_value = (rank - 0.5) / n as f64;
@@ -167,6 +165,7 @@ pub fn estimate_offset(x_sort: &[f64], y: &[f64]) -> f64 {
 
     let x_mean = x_regression.iter().sum::<f64>() / x_regression.len() as f64;
     let y_mean = y_regression.iter().sum::<f64>() / y_regression.len() as f64;
+
     // Perform linear regression to estimate the slope (beta) and intercept (gamma)
     let beta = {
         let numerator = x_regression
@@ -176,21 +175,14 @@ pub fn estimate_offset(x_sort: &[f64], y: &[f64]) -> f64 {
             .sum::<f64>();
         let denominator = x_regression
             .iter()
-            .map(|x| (x - x_mean).powi(2))
+            .map(|x| libm::pow(x - x_mean, 2.0))
             .sum::<f64>();
         numerator / denominator
     };
     let gamma = { y_mean - beta * x_mean };
 
-    // Find the point where the regression line crosses the x-axis (y = 0)
-    // Return the estimated offset (x_cross).
+    // Return the point where the regression line crosses the x-axis (y = 0)
     -gamma / beta
-}
-
-fn get_time_based_seed() -> u64 {
-    let now = SystemTime::now();
-    let duration = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
-    duration.as_secs() ^ duration.subsec_nanos() as u64
 }
 
 #[cfg(test)]
@@ -229,17 +221,71 @@ mod tests {
     }
 
     #[test]
-    fn test_estimate_alpha_beta_from_owd() {
-        let sample_data = vec![0.1, 0.2, 0.3, 0.4, 0.5];
-        let (alpha, beta) = estimate_gamma_parameters(&sample_data);
-        assert_eq!(alpha, 3.5999999999999996);
-        assert_eq!(beta, 0.08333333333333334);
+    fn test_estimate_gamma_parameters() {
+        let data = alloc::vec![1.53, 2.00, 2.75, 3.10, 4.93, 5.33];
+        let (alpha, beta) = estimate_gamma_parameters(&data);
+
+        let expected_alpha = 4.48;
+        let expected_beta = 0.73;
+
+        assert!(
+            (alpha - expected_alpha).abs() < 1e-2,
+            "Alpha {alpha:} estimation incorrect"
+        );
+        assert!(
+            (beta - expected_beta).abs() < 1e-2,
+            "Beta {beta:} estimation incorrect"
+        );
+    }
+
+    #[test]
+    fn test_generate_gamma_values() {
+        let alpha = 4.0;
+        let beta = 10.0;
+        let n = 100;
+        let seed = 500;
+        let values = generate_random_gamma_values(alpha, beta, n, seed);
+
+        let (alpha_hat, beta_hat) = estimate_gamma_parameters(&values);
+
+        assert!(
+            (alpha_hat - alpha).abs() / alpha < 1e-1,
+            "Alpha {alpha_hat:} does not match expected value"
+        );
+        assert!(
+            (beta_hat - beta).abs() / beta < 1e-1,
+            "Beta {beta_hat:} does not match expected value"
+        );
+    }
+
+    #[test]
+    fn test_estimate_offset() {
+        let alpha1 = 4.0;
+        let beta1 = 100.0;
+        let n = 100;
+        let seed = 500;
+        let mut values_sorted = generate_random_gamma_values(alpha1, beta1, n, seed);
+        values_sorted.sort_unstable_by(|a, b| a.partial_cmp(b).expect("Can't sort NaN, aborting"));
+        let offset = estimate_offset(&values_sorted, &values_sorted);
+
+        assert!(
+            offset.abs() < 1e-1,
+            "Mean offset {offset:} does not match expected value"
+        );
     }
 
     #[test]
     fn test_estimate() {
-        let time_values = vec![0.1, 0.2, 0.3, 0.4, 0.5];
-        let estimated_offset = estimate(time_values, Some(43));
-        assert_eq!(estimated_offset, 0.19495758127356233);
+        let alpha = 4.0;
+        let beta = 100.0;
+        let n = 10000;
+        let seed = 10000;
+        let values = generate_random_gamma_values(alpha, beta, n, seed);
+        let offset = estimate(values, Some(seed));
+
+        assert!(
+            offset.abs() < 1e-1,
+            "Mean offset {offset:} does not match expected value"
+        );
     }
 }

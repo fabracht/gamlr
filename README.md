@@ -2,22 +2,7 @@
 
 ## Overview
 
-This project implements a clock offset estimator based on the method described in the paper "A new model-based clock-offset approximation over IP networks". It's designed to estimate the time difference (offset) between two networked devices using one-way delay (OWD) measurements. This is particularly useful in distributed systems where time synchronization is crucial.
-
-## Features
-
-- **Linear Congruential Generator (LCG)**: Implements a pseudorandom number generator for various stochastic processes within the estimator.
-- **Gamma Distribution Estimation**: Estimates parameters of a Gamma distribution, a model for the network delay times.
-- **Marsaglia Polar Sampling**: Generates random values from a standard normal distribution.
-- **Gamma Variable Generation**: Produces random values following a Gamma distribution, essential in the offset estimation process.
-- **Clock Offset Estimation**: Core functionality that processes OWD measurements to calculate the clock offset between devices.
-- **Linear Regression for Offset Calculation**: Employs linear regression to refine the clock offset estimation.
-- **Seed Generation based on System Time**: Generates a seed for the random number generator using the current system time.
-
-## Requirements
-
-- Rust Programming Language: Ensure you have Rust installed on your system. Visit [Rust's official website](https://www.rust-lang.org/learn/get-started) for installation instructions.
-- Basic understanding of network protocols and time synchronization mechanisms, in particular timestamp based synchronization methods.
+This project implements a clock offset estimator based on the method described in the paper "A new model-based clock-offset approximation over IP networks". It's designed to estimate the time difference (offset) between two networked devices using one-way delay (OWD) measurements.
 
 ## Usage
 
@@ -30,10 +15,6 @@ let owd_measurements = vec![0.340, 0.360, 0.350, ...];
 let offset = estimate(owd_measurements);
 println!("Estimated clock offset: {}", offset);
 ```
-
-## Background
-
-Clock synchronization in networked systems is essential for coordination and consistency, especially in distributed systems, real-time applications, and network time protocols like NTP. The estimation method implemented in this project offers an alternative approach to conventional synchronization methods, potentially offering higher precision under certain network conditions.
 
 ## Contributing
 
